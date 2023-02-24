@@ -45,10 +45,10 @@ print(workers)
 # Set a "project name" e.g., the name of the study area. Will be used in naming the files
 iAREA <- "aland"
 
-my_timeout <- 2000 # in seconds, maximum time to wait for downloading the image file from GEE
+my_timeout <- 1000 # in seconds, maximum time to wait for downloading the image file from GEE
 info_timeout <- 20 # in seconds, maximum time to wait for image info from GEE
 
-mindate <- "2022-05-01"
+mindate <- "2000-05-01"
 maxdate <- Sys.Date()
 
 # Specify the EPSG code for wanted projection
@@ -90,7 +90,8 @@ dates2 <- dates[!dates %in% as.character(image_df$date)]
 
 lss <- mclapply(dates2, extract_landsat_NDVI_gee, mc.cores = workers,
                 aoi_ee = aoi_ee, epsg = epsg, drive_folder = drive_folder, 
-                area_dl_dir = area_dl_dir, name = iAREA)
+                area_dl_dir = area_dl_dir, name = iAREA,
+                onlyT1 = TRUE, maxcloudcover = 80)
 
 ee_clean_container(name = drive_folder, type = "drive", quiet = FALSE)
 
@@ -107,8 +108,9 @@ dates2 <- sample(dates2, length(dates2))
 
 lss <- mclapply(dates2, extract_landsat_NDVI_gee, mc.cores = workers,
                 aoi_ee = aoi_ee, epsg = epsg, drive_folder = drive_folder, 
-                area_dl_dir = area_dl_dir, name = aoi$name)
-
+                area_dl_dir = area_dl_dir, name = iAREA,
+                onlyT1 = TRUE, maxcloudcover = 80)
+  
 ee_clean_container(name = drive_folder, type = "drive", quiet = FALSE)
 
 # List downloaded images
@@ -123,7 +125,8 @@ if(length(img_remove) > 0){
   dates3 <- as.character(ymd(substr(unlist(lapply(image_df$file, function(x) str_split(x, "_")[[1]][5])), 1, 8)))
   lss <- mclapply(dates3, extract_landsat_NDVI_gee, mc.cores = workers,
                   aoi_ee = aoi_ee, epsg = epsg, drive_folder = drive_folder, 
-                  area_dl_dir = area_dl_dir, name = aoi$name)
+                  area_dl_dir = area_dl_dir, name = iAREA,
+                  onlyT1 = TRUE, maxcloudcover = 80)
 }
 
 img_remove <- unlist(mclapply(image_df$file, check_raster, image_dir = area_dl_dir, mc.cores = workers))

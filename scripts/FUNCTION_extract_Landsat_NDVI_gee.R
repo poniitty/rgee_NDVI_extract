@@ -28,15 +28,21 @@ mask_NDVI <- function(image, image_dir, ndvi_dir, mincover = 2){
 }
 
 # i <- "2022-08-29"
-#
-extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir, name){
+# "i" is the date to test for downloadable imagery
+# "aoi_gee" is a polygon in EarthEngine format, the extent for which to extract the data
+# "drive_folder" the name of the temporary folder to be created in Google Drive
+# "area_dl_dir" is the folder where to store the NDVI rasters
+# "name" is a dataset identifier, e.g., the name of the study area
+# "onlyT1" logical, TRUE/FALSE, whether only Tier 1 data will be extracted or Tier 2 as well
+# "maxcloudcover", values between 0 and 100, the maximum percentage of the scene that is aloud to be cloudy
+extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir, name, onlyT1 = FALSE, maxcloudcover = 100){
   # LANDSAT TM4
   if(year(i) %in% 1984:1993){
     # T1, COLLECTION 2
     dataset <- ee$ImageCollection('LANDSAT/LT04/C02/T1_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
     dataset <- dataset$filterBounds(geometry = aoi_ee)
     dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
-    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
+    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
     e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
     
     if(class(e)[1] != "try-error"){
@@ -89,45 +95,40 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
       }
       
     } else {
-      # T2, COLLECTION 2
-      dataset <- ee$ImageCollection('LANDSAT/LT04/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
-      dataset <- dataset$filterBounds(geometry = aoi_ee)
-      dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
-      dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
-      e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
-      
-      if(class(e)[1] != "try-error"){
-        maximg <- dataset$reduce(ee$Reducer$max())
-        ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
-        ndvi <- ndvi$
-          multiply(1000)$ # Multiply before transforming to integers
-          toUint16()
-        maximg <- maximg$addBands(ndvi)$
-          select("nd","QA_PIXEL_max")$
-          reproject(crs = paste0("EPSG:",epsg), scale = 30)$
-          toUint16()
+      if(!onlyT1){
         
-        task_img <- ee_image_to_drive(
-          image = maximg,
-          fileFormat = "GEO_TIFF",folder = drive_folder,
-          region = aoi_ee,
-          scale = 30,
-          fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
-        )
+        # T2, COLLECTION 2
+        dataset <- ee$ImageCollection('LANDSAT/LT04/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
+        dataset <- dataset$filterBounds(geometry = aoi_ee)
+        dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
+        dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
+        e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
         
-        task_img$start()
-        toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
-        if(class(toe)[1] == "try-error"){
-          task_img$cancel()
-          return("TIMEOUT")
-        } else {
-          de <- try(ee_drive_to_local(task = task_img, 
-                                      dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
-                                                   tail(str_split(ei$img_id,"/")[[1]],1),"_",
-                                                   format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+        if(class(e)[1] != "try-error"){
+          maximg <- dataset$reduce(ee$Reducer$max())
+          ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          ndvi <- ndvi$
+            multiply(1000)$ # Multiply before transforming to integers
+            toUint16()
+          maximg <- maximg$addBands(ndvi)$
+            select("nd","QA_PIXEL_max")$
+            reproject(crs = paste0("EPSG:",epsg), scale = 30)$
+            toUint16()
           
-          return("TM4 found")
-          if(class(de)[1] == "try-error"){
+          task_img <- ee_image_to_drive(
+            image = maximg,
+            fileFormat = "GEO_TIFF",folder = drive_folder,
+            region = aoi_ee,
+            scale = 30,
+            fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
+          )
+          
+          task_img$start()
+          toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
+          if(class(toe)[1] == "try-error"){
+            task_img$cancel()
+            return("TIMEOUT")
+          } else {
             de <- try(ee_drive_to_local(task = task_img, 
                                         dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
                                                      tail(str_split(ei$img_id,"/")[[1]],1),"_",
@@ -141,12 +142,18 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
                                                        format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
               
               return("TM4 found")
+              if(class(de)[1] == "try-error"){
+                de <- try(ee_drive_to_local(task = task_img, 
+                                            dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
+                                                         tail(str_split(ei$img_id,"/")[[1]],1),"_",
+                                                         format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+                
+                return("TM4 found")
+              }
             }
           }
+          
         }
-        
-      } else {
-        
       }
     }
   }
@@ -158,7 +165,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     dataset <- ee$ImageCollection('LANDSAT/LT05/C02/T1_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
     dataset <- dataset$filterBounds(geometry = aoi_ee)
     dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
-    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
+    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
     e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
     
     if(class(e)[1] != "try-error"){
@@ -211,45 +218,39 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
       }
       
     } else {
-      # T2, COLLECTION 2
-      dataset <- ee$ImageCollection('LANDSAT/LT05/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
-      dataset <- dataset$filterBounds(geometry = aoi_ee)
-      dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
-      dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
-      e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
-      
-      if(class(e)[1] != "try-error"){
-        maximg <- dataset$reduce(ee$Reducer$max())
-        ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
-        ndvi <- ndvi$
-          multiply(1000)$ # Multiply before transforming to integers
-          toUint16()
-        maximg <- maximg$addBands(ndvi)$
-          select("nd","QA_PIXEL_max")$
-          reproject(crs = paste0("EPSG:",epsg), scale = 30)$
-          toUint16()
+      if(!onlyT1){
+        # T2, COLLECTION 2
+        dataset <- ee$ImageCollection('LANDSAT/LT05/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
+        dataset <- dataset$filterBounds(geometry = aoi_ee)
+        dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
+        dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
+        e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
         
-        task_img <- ee_image_to_drive(
-          image = maximg,
-          fileFormat = "GEO_TIFF",folder = drive_folder,
-          region = aoi_ee,
-          scale = 30,
-          fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
-        )
-        
-        task_img$start()
-        toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
-        if(class(toe)[1] == "try-error"){
-          task_img$cancel()
-          return("TIMEOUT")
-        } else {
-          de <- try(ee_drive_to_local(task = task_img, 
-                                      dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
-                                                   tail(str_split(ei$img_id,"/")[[1]],1),"_",
-                                                   format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+        if(class(e)[1] != "try-error"){
+          maximg <- dataset$reduce(ee$Reducer$max())
+          ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          ndvi <- ndvi$
+            multiply(1000)$ # Multiply before transforming to integers
+            toUint16()
+          maximg <- maximg$addBands(ndvi)$
+            select("nd","QA_PIXEL_max")$
+            reproject(crs = paste0("EPSG:",epsg), scale = 30)$
+            toUint16()
           
-          return("TM5 found")
-          if(class(de)[1] == "try-error"){
+          task_img <- ee_image_to_drive(
+            image = maximg,
+            fileFormat = "GEO_TIFF",folder = drive_folder,
+            region = aoi_ee,
+            scale = 30,
+            fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
+          )
+          
+          task_img$start()
+          toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
+          if(class(toe)[1] == "try-error"){
+            task_img$cancel()
+            return("TIMEOUT")
+          } else {
             de <- try(ee_drive_to_local(task = task_img, 
                                         dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
                                                      tail(str_split(ei$img_id,"/")[[1]],1),"_",
@@ -263,12 +264,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
                                                        format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
               
               return("TM5 found")
+              if(class(de)[1] == "try-error"){
+                de <- try(ee_drive_to_local(task = task_img, 
+                                            dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
+                                                         tail(str_split(ei$img_id,"/")[[1]],1),"_",
+                                                         format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+                
+                return("TM5 found")
+              }
             }
           }
         }
-        
-      } else {
-        
       }
     }
   }
@@ -279,7 +285,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     dataset <- ee$ImageCollection('LANDSAT/LE07/C02/T1_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
     dataset <- dataset$filterBounds(geometry = aoi_ee)
     dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
-    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
+    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
     e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
     
     if(class(e)[1] != "try-error"){
@@ -332,45 +338,39 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
       }
       
     } else {
-      # T2, COLLECTION 2
-      dataset <- ee$ImageCollection('LANDSAT/LE07/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
-      dataset <- dataset$filterBounds(geometry = aoi_ee)
-      dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
-      dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
-      e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
-      
-      if(class(e)[1] != "try-error"){
-        maximg <- dataset$reduce(ee$Reducer$max())
-        ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
-        ndvi <- ndvi$
-          multiply(1000)$ # Multiply before transforming to integers
-          toUint16()
-        maximg <- maximg$addBands(ndvi)$
-          select("nd","QA_PIXEL_max")$
-          reproject(crs = paste0("EPSG:",epsg), scale = 30)$
-          toUint16()
+      if(!onlyT1){
+        # T2, COLLECTION 2
+        dataset <- ee$ImageCollection('LANDSAT/LE07/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
+        dataset <- dataset$filterBounds(geometry = aoi_ee)
+        dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7","ST_B6","QA_PIXEL","QA_RADSAT")
+        dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
+        e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
         
-        task_img <- ee_image_to_drive(
-          image = maximg,
-          fileFormat = "GEO_TIFF",folder = drive_folder,
-          region = aoi_ee,
-          scale = 30,
-          fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
-        )
-        
-        task_img$start()
-        toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
-        if(class(toe)[1] == "try-error"){
-          task_img$cancel()
-          return("TIMEOUT")
-        } else {
-          de <- try(ee_drive_to_local(task = task_img, 
-                                      dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
-                                                   tail(str_split(ei$img_id,"/")[[1]],1),"_",
-                                                   format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+        if(class(e)[1] != "try-error"){
+          maximg <- dataset$reduce(ee$Reducer$max())
+          ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          ndvi <- ndvi$
+            multiply(1000)$ # Multiply before transforming to integers
+            toUint16()
+          maximg <- maximg$addBands(ndvi)$
+            select("nd","QA_PIXEL_max")$
+            reproject(crs = paste0("EPSG:",epsg), scale = 30)$
+            toUint16()
           
-          return("ETM7 found")
-          if(class(de)[1] == "try-error"){
+          task_img <- ee_image_to_drive(
+            image = maximg,
+            fileFormat = "GEO_TIFF",folder = drive_folder,
+            region = aoi_ee,
+            scale = 30,
+            fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
+          )
+          
+          task_img$start()
+          toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
+          if(class(toe)[1] == "try-error"){
+            task_img$cancel()
+            return("TIMEOUT")
+          } else {
             de <- try(ee_drive_to_local(task = task_img, 
                                         dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
                                                      tail(str_split(ei$img_id,"/")[[1]],1),"_",
@@ -384,12 +384,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
                                                        format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
               
               return("ETM7 found")
+              if(class(de)[1] == "try-error"){
+                de <- try(ee_drive_to_local(task = task_img, 
+                                            dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
+                                                         tail(str_split(ei$img_id,"/")[[1]],1),"_",
+                                                         format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+                
+                return("ETM7 found")
+              }
             }
           }
         }
-        
-      } else {
-        
       }
     }
   }
@@ -400,7 +405,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     dataset <- ee$ImageCollection('LANDSAT/LC08/C02/T1_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
     dataset <- dataset$filterBounds(geometry = aoi_ee)
     dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B6","SR_B7","ST_B10","QA_PIXEL","QA_RADSAT")
-    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
+    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
     e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
     
     if(class(e)[1] != "try-error"){
@@ -453,45 +458,39 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
       }
       
     } else {
-      # T2, COLLECTION 2
-      dataset <- ee$ImageCollection('LANDSAT/LC08/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
-      dataset <- dataset$filterBounds(geometry = aoi_ee)
-      dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B6","SR_B7","ST_B10","QA_PIXEL","QA_RADSAT")
-      dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
-      e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
-      
-      if(class(e)[1] != "try-error"){
-        maximg <- dataset$reduce(ee$Reducer$max())
-        ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
-        ndvi <- ndvi$
-          multiply(1000)$ # Multiply before transforming to integers
-          toUint16()
-        maximg <- maximg$addBands(ndvi)$
-          select("nd","QA_PIXEL_max")$
-          reproject(crs = paste0("EPSG:",epsg), scale = 30)$
-          toUint16()
+      if(!onlyT1){
+        # T2, COLLECTION 2
+        dataset <- ee$ImageCollection('LANDSAT/LC08/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
+        dataset <- dataset$filterBounds(geometry = aoi_ee)
+        dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B6","SR_B7","ST_B10","QA_PIXEL","QA_RADSAT")
+        dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
+        e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
         
-        task_img <- ee_image_to_drive(
-          image = maximg,
-          fileFormat = "GEO_TIFF",folder = drive_folder,
-          region = aoi_ee,
-          scale = 30,
-          fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
-        )
-        
-        task_img$start()
-        toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
-        if(class(toe)[1] == "try-error"){
-          task_img$cancel()
-          return("TIMEOUT")
-        } else {
-          de <- try(ee_drive_to_local(task = task_img, 
-                                      dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
-                                                   tail(str_split(ei$img_id,"/")[[1]],1),"_",
-                                                   format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+        if(class(e)[1] != "try-error"){
+          maximg <- dataset$reduce(ee$Reducer$max())
+          ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
+          ndvi <- ndvi$
+            multiply(1000)$ # Multiply before transforming to integers
+            toUint16()
+          maximg <- maximg$addBands(ndvi)$
+            select("nd","QA_PIXEL_max")$
+            reproject(crs = paste0("EPSG:",epsg), scale = 30)$
+            toUint16()
           
-          return("OLI8 found")
-          if(class(de)[1] == "try-error"){
+          task_img <- ee_image_to_drive(
+            image = maximg,
+            fileFormat = "GEO_TIFF",folder = drive_folder,
+            region = aoi_ee,
+            scale = 30,
+            fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
+          )
+          
+          task_img$start()
+          toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
+          if(class(toe)[1] == "try-error"){
+            task_img$cancel()
+            return("TIMEOUT")
+          } else {
             de <- try(ee_drive_to_local(task = task_img, 
                                         dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
                                                      tail(str_split(ei$img_id,"/")[[1]],1),"_",
@@ -505,12 +504,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
                                                        format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
               
               return("OLI8 found")
+              if(class(de)[1] == "try-error"){
+                de <- try(ee_drive_to_local(task = task_img, 
+                                            dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
+                                                         tail(str_split(ei$img_id,"/")[[1]],1),"_",
+                                                         format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+                
+                return("OLI8 found")
+              }
             }
           }
         }
-        
-      } else {
-        return("OLI8 not found")
       }
     }
   }
@@ -521,7 +525,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     dataset <- ee$ImageCollection('LANDSAT/LC09/C02/T1_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
     dataset <- dataset$filterBounds(geometry = aoi_ee)
     dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B6","SR_B7","ST_B10","QA_PIXEL","QA_RADSAT")
-    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
+    dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
     e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
     
     if(class(e)[1] != "try-error"){
@@ -574,45 +578,39 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
       }
       
     } else {
-      # T2, COLLECTION 2
-      dataset <- ee$ImageCollection('LANDSAT/LC09/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
-      dataset <- dataset$filterBounds(geometry = aoi_ee)
-      dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B6","SR_B7","ST_B10","QA_PIXEL","QA_RADSAT")
-      dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", 80)
-      e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
-      
-      if(class(e)[1] != "try-error"){
-        maximg <- dataset$reduce(ee$Reducer$max())
-        ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
-        ndvi <- ndvi$
-          multiply(1000)$ # Multiply before transforming to integers
-          toUint16()
-        maximg <- maximg$addBands(ndvi)$
-          select("nd","QA_PIXEL_max")$
-          reproject(crs = paste0("EPSG:",epsg), scale = 30)$
-          toUint16()
+      if(!onlyT1){
+        # T2, COLLECTION 2
+        dataset <- ee$ImageCollection('LANDSAT/LC09/C02/T2_L2')$filterDate(i, as.character(as.Date(i)+days(1)))
+        dataset <- dataset$filterBounds(geometry = aoi_ee)
+        dataset <- dataset$select("SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B6","SR_B7","ST_B10","QA_PIXEL","QA_RADSAT")
+        dataset <- dataset$filterMetadata("CLOUD_COVER", "less_than", maxcloudcover)
+        e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
         
-        task_img <- ee_image_to_drive(
-          image = maximg,
-          fileFormat = "GEO_TIFF",folder = drive_folder,
-          region = aoi_ee,
-          scale = 30,
-          fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
-        )
-        
-        task_img$start()
-        toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
-        if(class(toe)[1] == "try-error"){
-          task_img$cancel()
-          return("TIMEOUT")
-        } else {
-          de <- try(ee_drive_to_local(task = task_img, 
-                                      dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
-                                                   tail(str_split(ei$img_id,"/")[[1]],1),"_",
-                                                   format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+        if(class(e)[1] != "try-error"){
+          maximg <- dataset$reduce(ee$Reducer$max())
+          ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
+          ndvi <- ndvi$
+            multiply(1000)$ # Multiply before transforming to integers
+            toUint16()
+          maximg <- maximg$addBands(ndvi)$
+            select("nd","QA_PIXEL_max")$
+            reproject(crs = paste0("EPSG:",epsg), scale = 30)$
+            toUint16()
           
-          return("OLI9 found")
-          if(class(de)[1] == "try-error"){
+          task_img <- ee_image_to_drive(
+            image = maximg,
+            fileFormat = "GEO_TIFF",folder = drive_folder,
+            region = aoi_ee,
+            scale = 30,
+            fileNamePrefix = paste0(name,"_",tail(str_split(ei$img_id,"/")[[1]],1))
+          )
+          
+          task_img$start()
+          toe <- try(withTimeout(ee_monitoring(task_img, max_attempts = (my_timeout/5)+1), timeout = my_timeout), silent = T)
+          if(class(toe)[1] == "try-error"){
+            task_img$cancel()
+            return("TIMEOUT")
+          } else {
             de <- try(ee_drive_to_local(task = task_img, 
                                         dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
                                                      tail(str_split(ei$img_id,"/")[[1]],1),"_",
@@ -626,12 +624,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
                                                        format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
               
               return("OLI9 found")
+              if(class(de)[1] == "try-error"){
+                de <- try(ee_drive_to_local(task = task_img, 
+                                            dsn = paste0(area_dl_dir, "/",name,"_C2_T2_",
+                                                         tail(str_split(ei$img_id,"/")[[1]],1),"_",
+                                                         format(ei$img_time_start, "%H%M%S%Z"))), silent = T)
+                
+                return("OLI9 found")
+              }
             }
           }
         }
-        
-      } else {
-        return("OLI9 not found")
       }
     }
   }
