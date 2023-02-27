@@ -30,7 +30,7 @@ mask_NDVI <- function(image, image_dir, ndvi_dir, mincover = 2){
   }
 }
 
-# i <- "2022-08-29"
+# i <- "2011-06-27"
 # "i" is the date to test for downloadable imagery
 # "aoi_gee" is a polygon in EarthEngine format, the extent for which to extract the data
 # "drive_folder" the name of the temporary folder to be created in Google Drive
@@ -50,7 +50,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     
     if(class(e)[1] != "try-error"){
       maximg <- dataset$reduce(ee$Reducer$max())
-      ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      ndvi <- maximg$
+        select('SR_B.*')$
+        multiply(0.0000275)$
+        add(-0.2)$
+        normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      
+      rmask <- ndvi$gt(0)
+      ndvi <- ndvi$updateMask(rmask)
+      rmask <- ndvi$lt(1)
+      ndvi <- ndvi$updateMask(rmask)
+      
       ndvi <- ndvi$
         multiply(1000)$ # Multiply before transforming to integers
         toUint16()
@@ -109,7 +119,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
         
         if(class(e)[1] != "try-error"){
           maximg <- dataset$reduce(ee$Reducer$max())
-          ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          ndvi <- maximg$
+            select('SR_B.*')$
+            multiply(0.0000275)$
+            add(-0.2)$
+            normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          
+          rmask <- ndvi$gt(0)
+          ndvi <- ndvi$updateMask(rmask)
+          rmask <- ndvi$lt(1)
+          ndvi <- ndvi$updateMask(rmask)
+          
           ndvi <- ndvi$
             multiply(1000)$ # Multiply before transforming to integers
             toUint16()
@@ -173,7 +193,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     
     if(class(e)[1] != "try-error"){
       maximg <- dataset$reduce(ee$Reducer$max())
-      ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      ndvi <- maximg$
+        select('SR_B.*')$
+        multiply(0.0000275)$
+        add(-0.2)$
+        normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      
+      rmask <- ndvi$gt(0)
+      ndvi <- ndvi$updateMask(rmask)
+      rmask <- ndvi$lt(1)
+      ndvi <- ndvi$updateMask(rmask)
+      
       ndvi <- ndvi$
         multiply(1000)$ # Multiply before transforming to integers
         toUint16()
@@ -231,7 +261,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
         
         if(class(e)[1] != "try-error"){
           maximg <- dataset$reduce(ee$Reducer$max())
-          ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          ndvi <- maximg$
+            select('SR_B.*')$
+            multiply(0.0000275)$
+            add(-0.2)$
+            normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          
+          rmask <- ndvi$gt(0)
+          ndvi <- ndvi$updateMask(rmask)
+          rmask <- ndvi$lt(1)
+          ndvi <- ndvi$updateMask(rmask)
+          
           ndvi <- ndvi$
             multiply(1000)$ # Multiply before transforming to integers
             toUint16()
@@ -293,7 +333,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     
     if(class(e)[1] != "try-error"){
       maximg <- dataset$reduce(ee$Reducer$max())
-      ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      ndvi <- maximg$
+        select('SR_B.*')$
+        multiply(0.0000275)$
+        add(-0.2)$
+        normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      
+      rmask <- ndvi$gt(0)
+      ndvi <- ndvi$updateMask(rmask)
+      rmask <- ndvi$lt(1)
+      ndvi <- ndvi$updateMask(rmask)
+      
       ndvi <- ndvi$
         multiply(1000)$ # Multiply before transforming to integers
         toUint16()
@@ -351,7 +401,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
         
         if(class(e)[1] != "try-error"){
           maximg <- dataset$reduce(ee$Reducer$max())
-          ndvi <- maximg$normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          ndvi <- maximg$
+            select('SR_B.*')$
+            multiply(0.0000275)$
+            add(-0.2)$
+            normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          
+          rmask <- ndvi$gt(0)
+          ndvi <- ndvi$updateMask(rmask)
+          rmask <- ndvi$lt(1)
+          ndvi <- ndvi$updateMask(rmask)
+          
           ndvi <- ndvi$
             multiply(1000)$ # Multiply before transforming to integers
             toUint16()
@@ -413,7 +473,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     
     if(class(e)[1] != "try-error"){
       maximg <- dataset$reduce(ee$Reducer$max())
-      ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
+      ndvi <- maximg$
+        select('SR_B.*')$
+        multiply(0.0000275)$
+        add(-0.2)$
+        normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      
+      rmask <- ndvi$gt(0)
+      ndvi <- ndvi$updateMask(rmask)
+      rmask <- ndvi$lt(1)
+      ndvi <- ndvi$updateMask(rmask)
+      
       ndvi <- ndvi$
         multiply(1000)$ # Multiply before transforming to integers
         toUint16()
@@ -471,7 +541,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
         
         if(class(e)[1] != "try-error"){
           maximg <- dataset$reduce(ee$Reducer$max())
-          ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
+          ndvi <- maximg$
+            select('SR_B.*')$
+            multiply(0.0000275)$
+            add(-0.2)$
+            normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          
+          rmask <- ndvi$gt(0)
+          ndvi <- ndvi$updateMask(rmask)
+          rmask <- ndvi$lt(1)
+          ndvi <- ndvi$updateMask(rmask)
+          
           ndvi <- ndvi$
             multiply(1000)$ # Multiply before transforming to integers
             toUint16()
@@ -533,7 +613,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
     
     if(class(e)[1] != "try-error"){
       maximg <- dataset$reduce(ee$Reducer$max())
-      ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
+      ndvi <- maximg$
+        select('SR_B.*')$
+        multiply(0.0000275)$
+        add(-0.2)$
+        normalizedDifference(c("SR_B4_max","SR_B3_max"))
+      
+      rmask <- ndvi$gt(0)
+      ndvi <- ndvi$updateMask(rmask)
+      rmask <- ndvi$lt(1)
+      ndvi <- ndvi$updateMask(rmask)
+      
       ndvi <- ndvi$
         multiply(1000)$ # Multiply before transforming to integers
         toUint16()
@@ -591,7 +681,17 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
         
         if(class(e)[1] != "try-error"){
           maximg <- dataset$reduce(ee$Reducer$max())
-          ndvi <- maximg$normalizedDifference(c("SR_B5_max","SR_B4_max"))
+          ndvi <- maximg$
+            select('SR_B.*')$
+            multiply(0.0000275)$
+            add(-0.2)$
+            normalizedDifference(c("SR_B4_max","SR_B3_max"))
+          
+          rmask <- ndvi$gt(0)
+          ndvi <- ndvi$updateMask(rmask)
+          rmask <- ndvi$lt(1)
+          ndvi <- ndvi$updateMask(rmask)
+          
           ndvi <- ndvi$
             multiply(1000)$ # Multiply before transforming to integers
             toUint16()
