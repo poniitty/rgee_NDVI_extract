@@ -45,7 +45,7 @@ print(workers)
 # Set a "project name" e.g., the name of the study area. Will be used in naming the files
 iAREA <- "aland"
 
-my_timeout <- 2000 # in seconds, maximum time to wait for downloading the image file from GEE
+my_timeout <- 3000 # in seconds, maximum time to wait for downloading the image file from GEE
 info_timeout <- 20 # in seconds, maximum time to wait for image info from GEE
 
 mindate <- "2017-05-01"
@@ -59,7 +59,7 @@ dates <- as.character(seq.Date(as.Date(mindate), as.Date(maxdate), by = "days"))
 dates <- dates[month(dates) %in% 5:8] # Limit which months will be included
 
 # Direction where imagery will be stores (in area-specific sub-directories)
-base_dl_dir <- "/scratch/project_2003061/microclim_RS/sentinel2"
+base_dl_dir <- "/scratch/project_2007415/Sentinel"
 
 # Read in the study area polygon
 
@@ -90,7 +90,8 @@ dates2 <- dates[!dates %in% as.character(image_df$date)]
 
 lss <- mclapply(dates2, extract_sentinel2_NDVI_gee, mc.cores = workers,
                 aoi_ee = aoi_ee, epsg = epsg, drive_folder = drive_folder, 
-                area_dl_dir = area_dl_dir, name = iAREA)
+                area_dl_dir = area_dl_dir, name = iAREA,
+                maxcloudcover = 80)
 
 ee_clean_container(name = drive_folder, type = "drive", quiet = FALSE)
 
@@ -107,7 +108,8 @@ dates2 <- sample(dates2, length(dates2))
 
 lss <- mclapply(dates2, extract_sentinel2_NDVI_gee, mc.cores = workers,
                 aoi_ee = aoi_ee, epsg = epsg, drive_folder = drive_folder, 
-                area_dl_dir = area_dl_dir, name = aoi$name)
+                area_dl_dir = area_dl_dir, name = iAREA,
+                maxcloudcover = 80)
 
 ee_clean_container(name = drive_folder, type = "drive", quiet = FALSE)
 
@@ -133,7 +135,8 @@ if(length(img_remove) > 0){
   dates3 <- as.character(ymd(substr(unlist(lapply(image_df$file, function(x) str_split(x, "_")[[1]][5])), 1, 8)))
   lss <- mclapply(dates3, extract_sentinel2_NDVI_gee, mc.cores = workers,
                   aoi_ee = aoi_ee, epsg = epsg, drive_folder = drive_folder, 
-                  area_dl_dir = area_dl_dir, name = aoi$name)
+                  area_dl_dir = area_dl_dir, name = iAREA,
+                  maxcloudcover = 80)
 }
 
 img_remove <- unlist(mclapply(image_df$file, check_raster, image_dir = area_dl_dir, mc.cores = workers))

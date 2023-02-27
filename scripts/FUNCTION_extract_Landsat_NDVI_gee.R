@@ -8,22 +8,25 @@ mask_NDVI <- function(image, image_dir, ndvi_dir, mincover = 2){
   rs <- rast(paste0(image_dir,"/",image))
   rsn <- names(rs)
   
-  cmask <- rs[[grepl("qa_",rsn, ignore.case = T)]]
-  cmask[] <- unlist(lapply(as.numeric(values(rs[[grepl("qa_",rsn, ignore.case = T)]])), mask_clear))
-  
-  rs <- ifel(cmask == 0, NA, rs)
-  
-  clprop <- mean(values(!is.na(rs[[1]])))*100
-  
-  if(clprop >= mincover){
-    rs <- rs[[1]]
-    names(rs) <- "NDVI"
-    rs[rs <= 0] <- NA
-    writeRaster(rs, paste0(ndvi_dir,"/",image), datatype = "INT2U", overwrite = T)
-    return("preserved")
-  } else {
-    unlink(paste0(image_dir,"/",image), force = T)
-    return("removed")
+  if(length(rsn) > 1){
+    cmask <- rs[[grepl("qa_",rsn, ignore.case = T)]]
+    cmask[] <- unlist(lapply(as.numeric(values(rs[[grepl("qa_",rsn, ignore.case = T)]])), mask_clear))
+    
+    rs <- ifel(cmask == 0, NA, rs)
+    
+    clprop <- mean(values(!is.na(rs[[1]])))*100
+    
+    if(clprop >= mincover){
+      rs <- rs[[1]]
+      names(rs) <- "NDVI"
+      rs[rs <= 0] <- NA
+      writeRaster(rs, paste0(ndvi_dir,"/",image), datatype = "INT2U", overwrite = T)
+      return("preserved")
+    } else {
+      unlink(paste0(image_dir,"/",image), force = T)
+      return("removed")
+    }
+    unlink(list.files(tempdir(), full.names = T))
   }
 }
 

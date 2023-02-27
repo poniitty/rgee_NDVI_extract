@@ -59,7 +59,7 @@ dates <- as.character(seq.Date(as.Date(mindate), as.Date(maxdate), by = "days"))
 dates <- dates[month(dates) %in% 5:8] # Limit which months will be included
 
 # Direction where imagery will be stores (in area-specific sub-directories)
-base_dl_dir <- "/scratch/project_2003061/microclim_RS/sentinel2"
+base_dl_dir <- "/scratch/project_2007415/Landsat"
 
 # Read in the study area polygon
 
@@ -110,7 +110,7 @@ lss <- mclapply(dates2, extract_landsat_NDVI_gee, mc.cores = workers,
                 aoi_ee = aoi_ee, epsg = epsg, drive_folder = drive_folder, 
                 area_dl_dir = area_dl_dir, name = iAREA,
                 onlyT1 = TRUE, maxcloudcover = 80)
-  
+
 ee_clean_container(name = drive_folder, type = "drive", quiet = FALSE)
 
 # List downloaded images
@@ -143,7 +143,7 @@ image_df <- image_df %>%
 # Masks all unwanted pixels and leaves only clear terrestrial pixels
 # removes images with less than wanted amount of good-quality pixels,
 # mincover sets the minimum percentage of quality pixels
-lccs <- mclapply(image_df$file, mask_NDVI, image_dir = area_dl_dir, ndvi_dir = area_dl_dir, mincover = 2, mc.cores = workers)
+lccs <- mclapply(image_df$file, mask_NDVI, image_dir = area_dl_dir, ndvi_dir = area_dl_dir, mincover = 5, mc.cores = workers)
 unlist(lccs)
 
 # Finalize file list

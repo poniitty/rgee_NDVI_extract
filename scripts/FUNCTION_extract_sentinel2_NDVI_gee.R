@@ -8,7 +8,7 @@ S2_clean <- function(img) {
   # Extract the quality band
   img_qa <- img$select("SCL")
   
-  # Create a mask considering: snow , water, cloud shandows, medium&high clouds, cirrus etc
+  # Create a mask considering: snow , water, cloud shadows, medium&high clouds, cirrus etc
   # See the mask values in: https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR_HARMONIZED
   cloud_mask <- img_qa$eq(list(1:3, 6:11))$reduce(ee$Reducer$sum())$gt(0)
   
@@ -18,14 +18,14 @@ S2_clean <- function(img) {
     ee$Image$copyProperties(img, list("system:time_start"))
 }
 
-extract_sentinel2_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir, name){
+extract_sentinel2_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir, name, maxcloudcover = 100){
   # Sentinel-2
   
   # Surface reflectance, Harmonized
   dataset <- ee$ImageCollection('COPERNICUS/S2_SR_HARMONIZED')$filterDate(i, as.character(as.Date(i)+days(1)))
   dataset <- dataset$filterBounds(geometry = aoi_ee)
   dataset <- dataset$select("B4","B8","SCL")
-  dataset <- dataset$filterMetadata("HIGH_PROBA_CLOUDS_PERCENTAGE", "less_than", 80)
+  dataset <- dataset$filterMetadata("HIGH_PROBA_CLOUDS_PERCENTAGE", "less_than", maxcloudcover)
   e <- try(withTimeout({ei <- ee_print(dataset, quiet = T)}, timeout = info_timeout), silent = T)
   
   if(class(e)[1] != "try-error"){
