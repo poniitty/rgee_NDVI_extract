@@ -45,10 +45,10 @@ print(workers)
 # Set a "project name" e.g., the name of the study area. Will be used in naming the files
 iAREA <- "aland"
 
-my_timeout <- 1000 # in seconds, maximum time to wait for downloading the image file from GEE
+my_timeout <- 2000 # in seconds, maximum time to wait for downloading the image file from GEE
 info_timeout <- 20 # in seconds, maximum time to wait for image info from GEE
 
-mindate <- "2000-05-01"
+mindate <- "2000-01-01"
 maxdate <- Sys.Date()
 
 # Specify the EPSG code for wanted projection

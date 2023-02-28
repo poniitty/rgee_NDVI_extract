@@ -477,7 +477,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
         select('SR_B.*')$
         multiply(0.0000275)$
         add(-0.2)$
-        normalizedDifference(c("SR_B4_max","SR_B3_max"))
+        normalizedDifference(c("SR_B5_max","SR_B4_max"))
       
       rmask <- ndvi$gt(0)
       ndvi <- ndvi$updateMask(rmask)
@@ -545,7 +545,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
             select('SR_B.*')$
             multiply(0.0000275)$
             add(-0.2)$
-            normalizedDifference(c("SR_B4_max","SR_B3_max"))
+            normalizedDifference(c("SR_B5_max","SR_B4_max"))
           
           rmask <- ndvi$gt(0)
           ndvi <- ndvi$updateMask(rmask)
@@ -617,7 +617,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
         select('SR_B.*')$
         multiply(0.0000275)$
         add(-0.2)$
-        normalizedDifference(c("SR_B4_max","SR_B3_max"))
+        normalizedDifference(c("SR_B5_max","SR_B4_max"))
       
       rmask <- ndvi$gt(0)
       ndvi <- ndvi$updateMask(rmask)
@@ -685,7 +685,7 @@ extract_landsat_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir,
             select('SR_B.*')$
             multiply(0.0000275)$
             add(-0.2)$
-            normalizedDifference(c("SR_B4_max","SR_B3_max"))
+            normalizedDifference(c("SR_B5_max","SR_B4_max"))
           
           rmask <- ndvi$gt(0)
           ndvi <- ndvi$updateMask(rmask)
