@@ -1,4 +1,4 @@
-# i <- "2021-08-15"
+# i <- "2023-07-22"
 #
 
 S2_clean <- function(img) {
@@ -10,14 +10,13 @@ S2_clean <- function(img) {
   
   # Create a mask considering: snow , water, cloud shadows, medium&high clouds, cirrus etc
   # See the mask values in: https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR_HARMONIZED
-  cloud_mask <- img_qa$eq(list(1:3, 6:11))$reduce(ee$Reducer$sum())$gt(0)
+  cloud_mask <- img_qa$eq(list(4, 5))$reduce(ee$Reducer$sum())$gt(0)
   
   # Mask pixels with value zero.
   ndvi_values %>%
     ee$Image$updateMask(cloud_mask) %>%
     ee$Image$copyProperties(img, list("system:time_start"))
 }
-
 extract_sentinel2_NDVI_gee <- function(i, aoi_ee, epsg, drive_folder, area_dl_dir, name, maxcloudcover = 100){
   # Sentinel-2
   
